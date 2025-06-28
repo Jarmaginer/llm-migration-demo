@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import './App.css';
 import VehiclePanel from './components/VehiclePanel';
 import ControlPanel from './components/ControlPanel';
@@ -30,20 +30,43 @@ function App() {
     compressionLevel: 'HIGH',
     encryptionEnabled: true,
     debugMode: false,
-    autoRetry: true
+    autoRetry: true,
+    stopOriginalAfterMigration: true
+  });
+
+  // 定时器引用管理
+  const timersRef = useRef({
+    vehicleAOutput: null,
+    vehicleBOutput: null,
+    packaging: null,
+    migration: null
   });
 
   // 模拟LLM推理文本
   const sampleText = "在未来的智能交通网络中，车辆之间的协作将变得前所未有的重要。通过先进的V2X技术，每一辆车都能成为整个网络的一个智能节点，实时共享计算资源和推理能力。当一辆车即将离开网络覆盖范围时，它可以无缝地将正在执行的AI任务迁移到附近的其他车辆上，确保服务的连续性和可靠性。这种分布式计算模式不仅提高了系统的鲁棒性，还能充分利用每辆车的计算能力，创造出一个真正智能的移动计算生态系统。";
 
+  // 清除所有定时器
+  const clearAllTimers = () => {
+    Object.values(timersRef.current).forEach(timer => {
+      if (timer) clearInterval(timer);
+    });
+    timersRef.current = {
+      vehicleAOutput: null,
+      vehicleBOutput: null,
+      packaging: null,
+      migration: null
+    };
+  };
+
   // 启动任务
   const startTask = () => {
+    clearAllTimers(); // 清除之前的定时器
     setSystemState('A_RUNNING');
     setVehicleAState(prev => ({ ...prev, status: '运行中' }));
 
     // 模拟流式输出和系统指标
     let index = 0;
-    const interval = setInterval(() => {
+    timersRef.current.vehicleAOutput = setInterval(() => {
       if (index < sampleText.length) {
         setVehicleAState(prev => ({
           ...prev,
@@ -55,45 +78,62 @@ function App() {
         }));
         index++;
       } else {
-        clearInterval(interval);
+        clearInterval(timersRef.current.vehicleAOutput);
+        timersRef.current.vehicleAOutput = null;
       }
     }, 100);
-
-    return interval;
   };
 
   // 执行迁移
   const executeMigration = () => {
     if (systemState !== 'A_RUNNING') return;
 
+    // 停止车辆A的输出
+    if (timersRef.current.vehicleAOutput) {
+      clearInterval(timersRef.current.vehicleAOutput);
+      timersRef.current.vehicleAOutput = null;
+    }
+
     setSystemState('A_PACKAGING');
     setVehicleAState(prev => ({ ...prev, status: '打包中' }));
 
     // 打包进度
     let progress = 0;
-    const packingInterval = setInterval(() => {
+    timersRef.current.packaging = setInterval(() => {
       progress += 5;
       setVehicleAState(prev => ({ ...prev, progress }));
 
       if (progress >= 100) {
-        clearInterval(packingInterval);
-        setVehicleAState(prev => ({
-          ...prev,
-          status: '已停止',
-          cpuUsage: 0
-        }));
+        clearInterval(timersRef.current.packaging);
+        timersRef.current.packaging = null;
+
+        // 根据配置决定是否停止原车辆
+        if (config.stopOriginalAfterMigration) {
+          setVehicleAState(prev => ({
+            ...prev,
+            status: '已停止',
+            cpuUsage: 0
+          }));
+        } else {
+          setVehicleAState(prev => ({
+            ...prev,
+            status: '待命中',
+            cpuUsage: 0
+          }));
+        }
 
         // 开始迁移到车辆B
         setSystemState('MIGRATING');
         setVehicleBState(prev => ({ ...prev, status: '接收中' }));
 
         let migrateProgress = 0;
-        const migrateInterval = setInterval(() => {
+        timersRef.current.migration = setInterval(() => {
           migrateProgress += 5;
           setVehicleBState(prev => ({ ...prev, progress: migrateProgress }));
 
           if (migrateProgress >= 100) {
-            clearInterval(migrateInterval);
+            clearInterval(timersRef.current.migration);
+            timersRef.current.migration = null;
 
             // 车辆B开始运行
             setSystemState('B_RUNNING');
@@ -106,7 +146,7 @@ function App() {
 
             // 继续流式输出
             let index = vehicleAState.llmOutput.length;
-            const continueInterval = setInterval(() => {
+            timersRef.current.vehicleBOutput = setInterval(() => {
               if (index < sampleText.length) {
                 setVehicleBState(prev => ({
                   ...prev,
@@ -115,7 +155,8 @@ function App() {
                 }));
                 index++;
               } else {
-                clearInterval(continueInterval);
+                clearInterval(timersRef.current.vehicleBOutput);
+                timersRef.current.vehicleBOutput = null;
               }
             }, 100);
           }
@@ -126,18 +167,27 @@ function App() {
 
   // 重置系统
   const resetSystem = () => {
+    clearAllTimers(); // 立即清除所有定时器
     setSystemState('IDLE');
     setVehicleAState({
       status: '待命中',
       llmOutput: '',
       cpuUsage: 0,
-      progress: 0
+      memoryUsage: 0,
+      networkLatency: 8,
+      progress: 0,
+      temperature: 45,
+      powerLevel: 85
     });
     setVehicleBState({
       status: '待命中',
       llmOutput: '',
       cpuUsage: 0,
-      progress: 0
+      memoryUsage: 0,
+      networkLatency: 8,
+      progress: 0,
+      temperature: 42,
+      powerLevel: 92
     });
   };
 

@@ -109,6 +109,16 @@ const ControlPanel = ({ onStartTask, onExecuteMigration, onReset, systemState, c
             />
             <span>{config.autoRetry ? 'ON' : 'OFF'}</span>
           </div>
+
+          <div className="config-item">
+            <label>STOP_ORIGINAL:</label>
+            <input
+              type="checkbox"
+              checked={config.stopOriginalAfterMigration}
+              onChange={(e) => setConfig({...config, stopOriginalAfterMigration: e.target.checked})}
+            />
+            <span>{config.stopOriginalAfterMigration ? 'ON' : 'OFF'}</span>
+          </div>
         </div>
       </div>
 
