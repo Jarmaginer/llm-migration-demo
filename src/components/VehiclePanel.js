@@ -1,5 +1,4 @@
 import React from 'react';
-import CPUGauge from './CPUGauge';
 import ProgressBar from './ProgressBar';
 import './VehiclePanel.css';
 
